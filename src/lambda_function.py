@@ -6,7 +6,6 @@ from decimal import Decimal
 
 dynamodb_client = boto3.client('dynamodb')
 bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-2')
-s3_client = boto3.client('s3')
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table('cloud-resume-challenge')
 tableName = 'cloud-resume-challenge'
