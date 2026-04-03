@@ -40,25 +40,24 @@ def lambda_handler(event, context):
 
     try:
         print("EVENT:", json.dumps(event))
-        if event['routeKey'] == "GET /{id}":
+        if event['routeKey'] == "GET /visitor-counter":
             body = table.get_item(
-                Key={'id': event['pathParameters']['id']})
+                Key={'id': 'visitor-counter'}
+            )
+            if not body:
+                table.put_item(
+                    Item=(
+                        {'id': 'visitor-counter', 'counter': Decimal('0'), 'name': 'Visitor Counter'}
+                    )
+                )
+                body = table.get_item(
+                    Key={'id': 'visitor-counter'}
+                )
             body = body["Item"]
             responseBody = [
                 {'counter': float(body['counter']), 'id': body['id'], 'name': body['name']}]
             body = responseBody
-        elif event['routeKey'] == "GET /":
-            body = table.scan()
-            body = body["Items"]
-            print("ITEMS----")
-            print(body)
-            responseBody = []
-            for items in body:
-                responseItems = [
-                    {'counter': float(items['counter']), 'id': items['id'], 'name': items['name']}]
-                responseBody.append(responseItems)
-            body = responseBody
-        elif event['routeKey'] == "POST /":
+        elif event['routeKey'] == "POST /visitor-counter":
             requestJSON = json.loads(event['body'])
             table.put_item(
                 Item={

@@ -119,17 +119,17 @@ resource "aws_apigatewayv2_integration" "lambda_function" {
   integration_method = "POST"
 }
 
-resource "aws_apigatewayv2_route" "lambda_function_get_index" {
+resource "aws_apigatewayv2_route" "lambda_function_get_visitor_counter" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  route_key = "GET /"
+  route_key = "GET /visitor-counter"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
 }
 
-resource "aws_apigatewayv2_route" "lambda_function_post_index" {
+resource "aws_apigatewayv2_route" "lambda_function_post_visitor_counter" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  route_key = "POST /"
+  route_key = "POST /visitor-counter"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
 }
 
