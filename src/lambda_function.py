@@ -39,6 +39,7 @@ def lambda_handler(event, context):
     }
 
     try:
+        print("EVENT:", json.dumps(event))
         if event['routeKey'] == "GET /{id}":
             body = table.get_item(
                 Key={'id': event['pathParameters']['id']})
