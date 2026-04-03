@@ -81,6 +81,11 @@ resource "aws_iam_role_policy_attachment" "lambda_policy" {
     policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "dynamodb_policy" {
+  role = aws_iam_role.lambda_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+}
+
 resource "aws_apigatewayv2_api" "lambda" {
     name = "cloud-resume-challenge"
     protocol_type = "HTTP"
@@ -117,6 +122,7 @@ resource "aws_apigatewayv2_integration" "lambda_function" {
   integration_uri    = aws_lambda_function.lambda_function.invoke_arn
   integration_type   = "AWS_PROXY"
   integration_method = "POST"
+  payload_format_version = "2.0"
 }
 
 resource "aws_apigatewayv2_route" "lambda_function_get_visitor_counter" {
@@ -137,13 +143,6 @@ resource "aws_apigatewayv2_route" "lambda_function_options_resume_summarizer" {
   api_id = aws_apigatewayv2_api.lambda.id
 
   route_key = "OPTIONS /resume-summarizer"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
-}
-
-resource "aws_apigatewayv2_route" "lambda_function_get_id" {
-  api_id = aws_apigatewayv2_api.lambda.id
-
-  route_key = "GET /{id}"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
 }
 
