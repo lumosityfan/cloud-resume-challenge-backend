@@ -126,13 +126,6 @@ resource "aws_apigatewayv2_route" "lambda_function_get_visitor_counter" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
 }
 
-resource "aws_apigatewayv2_route" "lambda_function_post_visitor_counter" {
-  api_id = aws_apigatewayv2_api.lambda.id
-
-  route_key = "POST /visitor-counter"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
-}
-
 resource "aws_apigatewayv2_route" "lambda_function_post_resume_summarizer" {
   api_id = aws_apigatewayv2_api.lambda.id
 

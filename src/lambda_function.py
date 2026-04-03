@@ -41,22 +41,21 @@ def lambda_handler(event, context):
     try:
         print("EVENT:", json.dumps(event))
         if event['routeKey'] == "GET /visitor-counter":
-            body = table.get_item(
-                Key={'id': 'visitor-counter'}
+            response = table.update_item(
+                Key={'id': 'visitor-counter'},
+                UpdateExpression='ADD #c :inc SET #n = if_not_exists(#n, :name)',
+                ExpressionAttributeNames={
+                    '#c': 'counter',
+                    '#n': 'name'
+                },
+                ExpressionAttributeValues={
+                    ':inc': Decimal('1'),
+                    ':name': 'Visitor Counter'
+                },
+                ReturnValues='ALL_NEW'
             )
-            if not body:
-                table.put_item(
-                    Item=(
-                        {'id': 'visitor-counter', 'counter': Decimal('0'), 'name': 'Visitor Counter'}
-                    )
-                )
-                body = table.get_item(
-                    Key={'id': 'visitor-counter'}
-                )
-            body = body["Item"]
-            responseBody = [
-                {'counter': float(body['counter']), 'id': body['id'], 'name': body['name']}]
-            body = responseBody
+            item = response['Attributes']
+            body = [{'counter': float(item['counter']), 'id': item['id'], 'name': item['name']}]
         elif event['routeKey'] == "POST /visitor-counter":
             requestJSON = json.loads(event['body'])
             table.put_item(
