@@ -1,5 +1,5 @@
 provider "aws" {
-    region = "us-east-1"
+    region = "us-east-2"
 }
 
 data "archive_file" "lambda_function" {
@@ -41,7 +41,7 @@ resource "aws_s3_object" "lambda_function" {
 }
 
 resource "aws_lambda_function" "lambda_function" {
-    function_name = "lambda_function"
+    function_name = "cloud-resume-challenge"
 
     s3_bucket = aws_s3_bucket.lambda_bucket.id
     s3_key    = aws_s3_object.lambda_function.key
@@ -82,14 +82,14 @@ resource "aws_iam_role_policy_attachment" "lambda_policy" {
 }
 
 resource "aws_apigatewayv2_api" "lambda" {
-    name = "cloud_resume_challenge"
+    name = "cloud-resume-challenge"
     protocol_type = "HTTP"
 }
 
 resource "aws_apigatewayv2_stage" "lambda" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  name        = "cloud-resume-challenge"
+  name        = "$default"
   auto_deploy = true
 
   access_log_settings {
