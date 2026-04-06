@@ -7,8 +7,9 @@ from decimal import Decimal
 dynamodb_client = boto3.client('dynamodb')
 bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-2')
 dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table('cloud-resume-challenge')
+visitor_counter_table = dynamodb.Table('cloud-resume-challenge')
 tableName = 'cloud-resume-challenge'
+human_or_bot_table = dynamodb.Table('human-or-bot')
 
 
 def lambda_handler(event, context):
@@ -39,26 +40,60 @@ def lambda_handler(event, context):
     }
 
     try:
-        print("EVENT:", json.dumps(event))
         if event['routeKey'] == "GET /visitor-counter":
-            response = table.update_item(
-                Key={'id': 'visitor-counter'},
-                UpdateExpression='ADD #c :inc SET #n = if_not_exists(#n, :name)',
-                ExpressionAttributeNames={
-                    '#c': 'counter',
-                    '#n': 'name'
-                },
-                ExpressionAttributeValues={
-                    ':inc': Decimal('1'),
-                    ':name': 'Visitor Counter'
-                },
-                ReturnValues='ALL_NEW'
+            event_data = {
+                'ip_address': event['requestContext']['http']['sourceIp'],
+                'user_agent': event['requestContext']['http']['userAgent'],
+                'referer': event['headers'].get('referer', ''),
+                'timestamp': event['requestContext']['time']
+            }
+            bedrock_response = bedrock_client.invoke_model(
+                modelId='us.anthropic.claude-haiku-4-5-20251001-v1:0',
+                body=json.dumps({
+                    'anthropic_version': 'bedrock-2023-05-31',
+                    'messages': [{
+                        'role': 'user',
+                        'content': [
+                            {
+                                'type': 'text',
+                                'text': f'''Given the following visitor data in JSON format, classify if the user is real or bot-like, and rate intent to bounce. Here's the visitor data: {json.dumps(event_data)}'''
+                            }
+                        ]
+                    }],
+                    'max_tokens': 256
+                })
             )
-            item = response['Attributes']
+            bedrock_body = json.loads(bedrock_response['body'].read())
+            if "REAL USER" in bedrock_body['content'][0]['text']:
+                event_data["traffic_type"] = "likely human"
+                visitor_counter_response = visitor_counter_table.update_item(
+                    Key={'id': 'visitor-counter'},
+                    UpdateExpression='ADD #c :inc SET #n = if_not_exists(#n, :name)',
+                    ExpressionAttributeNames={
+                        '#c': 'counter',
+                        '#n': 'name'
+                    },
+                    ExpressionAttributeValues={
+                        ':inc': Decimal('1'),
+                        ':name': 'Visitor Counter'
+                    },
+                    ReturnValues='ALL_NEW'
+                )
+            elif "BOT-LIKE" in bedrock_body['content'][0]['text']:
+                event_data["traffic_type"] = "likely bot"
+                visitor_counter_response = visitor_counter_table.get_item(Key={'id': 'visitor-counter'})
+            human_or_bot_table.put_item(Item={
+                    "ip_address": hash(event_data['ip_address']),
+                    "user_agent": event_data['user_agent'],
+                    "referer": event_data['referer'],
+                    "timestamp": event_data['timestamp'],
+                    "traffic_type": event_data['traffic_type']
+            })
+            item = visitor_counter_response['Attributes']
             body = [{'counter': float(item['counter']), 'id': item['id'], 'name': item['name']}]
         elif event['routeKey'] == "POST /visitor-counter":
             requestJSON = json.loads(event['body'])
-            table.put_item(
+            visitor_counter_table.put_item(
                 Item={
                     'id': requestJSON['id'],
                     'counter': requestJSON['counter'],

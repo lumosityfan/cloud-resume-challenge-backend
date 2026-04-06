@@ -1,5 +1,6 @@
 provider "aws" {
     region = "us-east-2"
+    profile = "cloud-resume-challenge"
 }
 
 data "archive_file" "lambda_function" {
@@ -52,6 +53,7 @@ resource "aws_lambda_function" "lambda_function" {
     source_code_hash = data.archive_file.lambda_function.output_base64sha256
 
     role = aws_iam_role.lambda_exec.arn 
+    timeout = 30
 }
 
 resource "aws_cloudwatch_log_group" "lambda_function" {
@@ -86,9 +88,72 @@ resource "aws_iam_role_policy_attachment" "dynamodb_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
 }
 
+resource "aws_iam_role_policy_attachment" "bedrock_policy" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonBedrockFullAccess"
+}
+
+resource "aws_iam_role_policy" "bedrock_inference_profile" {
+  name = "bedrock-inference-profile"
+  role = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["bedrock:InvokeModel"]
+        Resource = [
+          "arn:aws:bedrock:us-east-2::foundation-model/*",
+          "arn:aws:bedrock:*:533266979920:inference-profile/*"
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_apigatewayv2_api" "lambda" {
     name = "cloud-resume-challenge"
     protocol_type = "HTTP"
+
+    cors_configuration {
+      allow_origins = [
+        "https://www.jeffxieresumewebsite.com",
+        "https://jeffxieresumewebsite.com",
+        "http://localhost:3000",
+        "http://localhost:5500",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:5500"
+      ]
+      allow_methods = ["GET", "POST", "OPTIONS"]
+      allow_headers = ["Content-Type"]
+      max_age       = 300
+    }
+}
+
+resource "aws_iam_role" "api_gw_cloudwatch" {
+  name = "api-gw-cloudwatch"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = {
+        Service = "apigateway.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "api_gw_cloudwatch" {
+  role       = aws_iam_role.api_gw_cloudwatch.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+resource "aws_api_gateway_account" "main" {
+  cloudwatch_role_arn = aws_iam_role.api_gw_cloudwatch.arn
 }
 
 resource "aws_apigatewayv2_stage" "lambda" {
@@ -173,13 +238,26 @@ resource "aws_dynamodb_table" "cloud-resume-challenge" {
     type = "S"
   }
 
-  attribute {
-    name = "counter"
-    type = "N"
+  ttl {
+    attribute_name = "TimeToExist"
+    enabled        = true
   }
 
+  tags = {
+    Name        = "dynamodb-table-1"
+    Environment = "production"
+  }
+}
+
+resource "aws_dynamodb_table" "human_or_bot" {
+  name           = "human-or-bot"
+  billing_mode   = "PROVISIONED"
+  read_capacity  = 20
+  write_capacity = 20
+  hash_key     = "ip_address"
+
   attribute {
-    name = "name"
+    name = "ip_address"
     type = "S"
   }
 
@@ -188,18 +266,8 @@ resource "aws_dynamodb_table" "cloud-resume-challenge" {
     enabled        = true
   }
 
-  global_secondary_index {
-    name               = "CounterIndex"
-    hash_key           = "name"
-    range_key          = "counter"
-    write_capacity     = 10
-    read_capacity      = 10
-    projection_type    = "INCLUDE"
-    non_key_attributes = ["id"]
-  }
-
   tags = {
-    Name        = "dynamodb-table-1"
+    Name        = "human-or-bot"
     Environment = "production"
   }
 }
