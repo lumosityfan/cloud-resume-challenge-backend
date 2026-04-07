@@ -1,7 +1,6 @@
 # AWS provider
 provider "aws" {
-  region  = "us-east-2"
-  profile = "cloud-resume-challenge"
+  region = "us-east-2"
 }
 
 # Archive files
