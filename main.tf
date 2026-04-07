@@ -258,7 +258,7 @@ resource "aws_dynamodb_table" "human_or_bot" {
 
   attribute {
     name = "ip_address"
-    type = "S"
+    type = "N"
   }
 
   ttl {
