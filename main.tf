@@ -1,156 +1,156 @@
 # AWS provider
 provider "aws" {
-    region = "us-east-2"
-    profile = "cloud-resume-challenge"
+  region  = "us-east-2"
+  profile = "cloud-resume-challenge"
 }
 
 # Archive files
 data "archive_file" "resume_summarizer" {
-    type = "zip"
+  type = "zip"
 
-    source_dir  = "${path.module}/src"
-    output_path = "${path.module}/resume_summarizer.zip"
+  source_dir  = "${path.module}/src"
+  output_path = "${path.module}/resume_summarizer.zip"
 }
 
 data "archive_file" "get_visitor_counter" {
-    type = "zip"
+  type = "zip"
 
-    source_dir  = "${path.module}/src"
-    output_path = "${path.module}/get_visitor_counter.zip"
+  source_dir  = "${path.module}/src"
+  output_path = "${path.module}/get_visitor_counter.zip"
 }
 
 data "archive_file" "post_visitor_counter_increment" {
-    type = "zip"
+  type = "zip"
 
-    source_dir  = "${path.module}/src"
-    output_path = "${path.module}/post_visitor_counter_increment.zip"
+  source_dir  = "${path.module}/src"
+  output_path = "${path.module}/post_visitor_counter_increment.zip"
 }
 
 resource "random_pet" "lambda_bucket_name" {
-    prefix = "cloud-resume-challenge"
-    length = 4
+  prefix = "cloud-resume-challenge"
+  length = 4
 }
 
 resource "aws_s3_bucket" "lambda_bucket" {
-    bucket = random_pet.lambda_bucket_name.id
+  bucket = random_pet.lambda_bucket_name.id
 }
 
 resource "aws_s3_bucket_ownership_controls" "lambda_bucket" {
-    bucket = aws_s3_bucket.lambda_bucket.id
-    rule {
-        object_ownership = "BucketOwnerPreferred"
-    }
+  bucket = aws_s3_bucket.lambda_bucket.id
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
 }
 
 resource "aws_s3_bucket_acl" "lambda_bucket" {
-    depends_on = [aws_s3_bucket_ownership_controls.lambda_bucket]
+  depends_on = [aws_s3_bucket_ownership_controls.lambda_bucket]
 
-    bucket = aws_s3_bucket.lambda_bucket.id
-    acl    = "private"
+  bucket = aws_s3_bucket.lambda_bucket.id
+  acl    = "private"
 }
 
 resource "aws_s3_object" "resume_summarizer" {
-    bucket = aws_s3_bucket.lambda_bucket.id
+  bucket = aws_s3_bucket.lambda_bucket.id
 
-    key = "resume_summarizer.zip"
-    source = data.archive_file.resume_summarizer.output_path
-    etag = filemd5(data.archive_file.resume_summarizer.output_path)
+  key    = "resume_summarizer.zip"
+  source = data.archive_file.resume_summarizer.output_path
+  etag   = filemd5(data.archive_file.resume_summarizer.output_path)
 }
 
 resource "aws_s3_object" "get_visitor_counter" {
-    bucket = aws_s3_bucket.lambda_bucket.id
+  bucket = aws_s3_bucket.lambda_bucket.id
 
-    key = "get_visitor_counter.zip"
-    source = data.archive_file.get_visitor_counter.output_path
-    etag = filemd5(data.archive_file.get_visitor_counter.output_path)
+  key    = "get_visitor_counter.zip"
+  source = data.archive_file.get_visitor_counter.output_path
+  etag   = filemd5(data.archive_file.get_visitor_counter.output_path)
 }
 
 resource "aws_s3_object" "post_visitor_counter_increment" {
-    bucket = aws_s3_bucket.lambda_bucket.id
+  bucket = aws_s3_bucket.lambda_bucket.id
 
-    key = "post_visitor_counter_increment.zip"
-    source = data.archive_file.post_visitor_counter_increment.output_path
-    etag = filemd5(data.archive_file.post_visitor_counter_increment.output_path)
+  key    = "post_visitor_counter_increment.zip"
+  source = data.archive_file.post_visitor_counter_increment.output_path
+  etag   = filemd5(data.archive_file.post_visitor_counter_increment.output_path)
 }
 
 resource "aws_lambda_function" "resume_summarizer" {
-    function_name = "resume-summarizer"
+  function_name = "resume-summarizer"
 
-    s3_bucket = aws_s3_bucket.lambda_bucket.id
-    s3_key    = aws_s3_object.resume_summarizer.key
+  s3_bucket = aws_s3_bucket.lambda_bucket.id
+  s3_key    = aws_s3_object.resume_summarizer.key
 
-    runtime = "python3.13"
-    handler = "resume_summarizer.lambda_handler"
+  runtime = "python3.13"
+  handler = "resume_summarizer.lambda_handler"
 
-    source_code_hash = data.archive_file.resume_summarizer.output_base64sha256
+  source_code_hash = data.archive_file.resume_summarizer.output_base64sha256
 
-    role = aws_iam_role.lambda_exec.arn 
-    timeout = 30
+  role    = aws_iam_role.lambda_exec.arn
+  timeout = 30
 }
 
 resource "aws_cloudwatch_log_group" "resume_summarizer" {
-    name = "/aws/lambda/${aws_lambda_function.resume_summarizer.function_name}"
+  name = "/aws/lambda/${aws_lambda_function.resume_summarizer.function_name}"
 
-    retention_in_days = 30
-} 
+  retention_in_days = 30
+}
 
 resource "aws_lambda_function" "get_visitor_counter" {
-    function_name = "get_visitor_counter"
+  function_name = "get_visitor_counter"
 
-    s3_bucket = aws_s3_bucket.lambda_bucket.id
-    s3_key    = aws_s3_object.get_visitor_counter.key
+  s3_bucket = aws_s3_bucket.lambda_bucket.id
+  s3_key    = aws_s3_object.get_visitor_counter.key
 
-    runtime = "python3.13"
-    handler = "get_visitor_counter.lambda_handler"
+  runtime = "python3.13"
+  handler = "get_visitor_counter.lambda_handler"
 
-    source_code_hash = data.archive_file.get_visitor_counter.output_base64sha256
+  source_code_hash = data.archive_file.get_visitor_counter.output_base64sha256
 
-    role = aws_iam_role.lambda_get_role.arn 
-    timeout = 30
+  role    = aws_iam_role.lambda_get_role.arn
+  timeout = 30
 }
 
 resource "aws_cloudwatch_log_group" "get_visitor_counter" {
-    name = "/aws/lambda/${aws_lambda_function.get_visitor_counter.function_name}"
+  name = "/aws/lambda/${aws_lambda_function.get_visitor_counter.function_name}"
 
-    retention_in_days = 30
-} 
+  retention_in_days = 30
+}
 
 resource "aws_lambda_function" "post_visitor_counter_increment" {
-    function_name = "post_visitor_counter_increment"
+  function_name = "post_visitor_counter_increment"
 
-    s3_bucket = aws_s3_bucket.lambda_bucket.id
-    s3_key    = aws_s3_object.post_visitor_counter_increment.key
+  s3_bucket = aws_s3_bucket.lambda_bucket.id
+  s3_key    = aws_s3_object.post_visitor_counter_increment.key
 
-    runtime = "python3.13"
-    handler = "post_visitor_counter_increment.lambda_handler"
+  runtime = "python3.13"
+  handler = "post_visitor_counter_increment.lambda_handler"
 
-    source_code_hash = data.archive_file.post_visitor_counter_increment.output_base64sha256
+  source_code_hash = data.archive_file.post_visitor_counter_increment.output_base64sha256
 
-    role = aws_iam_role.lambda_post_role.arn 
-    timeout = 30
+  role    = aws_iam_role.lambda_post_role.arn
+  timeout = 30
 }
 
 resource "aws_cloudwatch_log_group" "post_visitor_counter_increment" {
-    name = "/aws/lambda/${aws_lambda_function.post_visitor_counter_increment.function_name}"
+  name = "/aws/lambda/${aws_lambda_function.post_visitor_counter_increment.function_name}"
 
-    retention_in_days = 30
-} 
+  retention_in_days = 30
+}
 
 # AWS IAM Roles
 resource "aws_iam_role" "lambda_exec" {
-    name = "lambda_function"
+  name = "lambda_function"
 
-    assume_role_policy = jsonencode({
-        Version = "2012-10-17"
-        Statement = [{
-            Action = "sts:AssumeRole"
-            Effect = "Allow"
-            Sid    = ""
-            Principal = {
-                Service = "lambda.amazonaws.com"
-            }
-        }]
-    })
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Sid    = ""
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      }
+    }]
+  })
 }
 
 resource "aws_iam_role" "lambda_get_role" {
@@ -188,8 +188,8 @@ resource "aws_iam_role_policy" "bedrock_inference_profile_lambda_exec" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["bedrock:InvokeModel"]
+        Effect = "Allow"
+        Action = ["bedrock:InvokeModel"]
         Resource = [
           "arn:aws:bedrock:us-east-2::foundation-model/*",
           "arn:aws:bedrock:*:533266979920:inference-profile/*"
@@ -207,8 +207,8 @@ resource "aws_iam_role_policy" "bedrock_inference_profile_lambda_post_role" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["bedrock:InvokeModel"]
+        Effect = "Allow"
+        Action = ["bedrock:InvokeModel"]
         Resource = [
           "arn:aws:bedrock:us-east-2::foundation-model/*",
           "arn:aws:bedrock:*:533266979920:inference-profile/*"
@@ -241,12 +241,12 @@ resource "aws_iam_role_policy" "post_policy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      { 
+      {
         Effect   = "Allow"
         Action   = ["dynamodb:PutItem"]
         Resource = aws_dynamodb_table.visitor_counter.arn
       },
-      { 
+      {
         Effect   = "Allow"
         Action   = ["dynamodb:PutItem"]
         Resource = aws_dynamodb_table.human_or_bot.arn
@@ -256,8 +256,8 @@ resource "aws_iam_role_policy" "post_policy" {
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_policy" {
-    role = aws_iam_role.lambda_exec.name
-    policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 resource "aws_iam_role_policy_attachment" "get_basic_execution" {
@@ -281,23 +281,23 @@ resource "aws_iam_role_policy_attachment" "bedrock_policy_lambda_post_role" {
 }
 
 resource "aws_apigatewayv2_api" "lambda" {
-    name = "cloud-resume-challenge"
-    protocol_type = "HTTP"
+  name          = "cloud-resume-challenge"
+  protocol_type = "HTTP"
 
-    cors_configuration {
-      allow_origins = [
-        "https://www.jeffxieresumewebsite.com",
-        "https://jeffxieresumewebsite.com",
-        "http://localhost:3000",
-        "http://localhost:5500",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:5500"
-      ]
-      allow_methods = ["GET", "POST", "OPTIONS"]
-      allow_headers = ["Content-Type"]
-      max_age       = 300
-    }
+  cors_configuration {
+    allow_origins = [
+      "https://www.jeffxieresumewebsite.com",
+      "https://jeffxieresumewebsite.com",
+      "http://localhost:3000",
+      "http://localhost:5500",
+      "http://localhost:8000",
+      "http://127.0.0.1:8000",
+      "http://127.0.0.1:5500"
+    ]
+    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_headers = ["Content-Type"]
+    max_age       = 300
+  }
 }
 
 resource "aws_iam_role" "api_gw_cloudwatch" {
@@ -306,8 +306,8 @@ resource "aws_iam_role" "api_gw_cloudwatch" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
       Principal = {
         Service = "apigateway.amazonaws.com"
       }
@@ -353,27 +353,27 @@ resource "aws_apigatewayv2_stage" "lambda" {
 resource "aws_apigatewayv2_integration" "resume_summarizer" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  integration_uri    = aws_lambda_function.resume_summarizer.invoke_arn
-  integration_type   = "AWS_PROXY"
-  integration_method = "POST"
+  integration_uri        = aws_lambda_function.resume_summarizer.invoke_arn
+  integration_type       = "AWS_PROXY"
+  integration_method     = "POST"
   payload_format_version = "2.0"
 }
 
 resource "aws_apigatewayv2_integration" "get_visitor_counter" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  integration_uri    = aws_lambda_function.get_visitor_counter.invoke_arn
-  integration_type   = "AWS_PROXY"
-  integration_method = "POST"
+  integration_uri        = aws_lambda_function.get_visitor_counter.invoke_arn
+  integration_type       = "AWS_PROXY"
+  integration_method     = "POST"
   payload_format_version = "2.0"
 }
 
 resource "aws_apigatewayv2_integration" "post_visitor_counter_increment" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  integration_uri    = aws_lambda_function.post_visitor_counter_increment.invoke_arn
-  integration_type   = "AWS_PROXY"
-  integration_method = "POST"
+  integration_uri        = aws_lambda_function.post_visitor_counter_increment.invoke_arn
+  integration_type       = "AWS_PROXY"
+  integration_method     = "POST"
   payload_format_version = "2.0"
 }
 
@@ -444,7 +444,7 @@ resource "aws_dynamodb_table" "visitor_counter" {
   billing_mode   = "PROVISIONED"
   read_capacity  = 20
   write_capacity = 20
-  hash_key     = "id"
+  hash_key       = "id"
 
   attribute {
     name = "id"
@@ -467,7 +467,7 @@ resource "aws_dynamodb_table" "human_or_bot" {
   billing_mode   = "PROVISIONED"
   read_capacity  = 20
   write_capacity = 20
-  hash_key     = "ip_address"
+  hash_key       = "ip_address"
 
   attribute {
     name = "ip_address"
