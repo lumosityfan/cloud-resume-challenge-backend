@@ -5,11 +5,10 @@ import base64
 from decimal import Decimal
 
 dynamodb_client = boto3.client('dynamodb')
-bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-2')
 dynamodb = boto3.resource("dynamodb")
-visitor_counter_table = dynamodb.Table('cloud-resume-challenge')
-tableName = 'cloud-resume-challenge'
+visitor_counter_table = dynamodb.Table('visitor-counter')
 human_or_bot_table = dynamodb.Table('human-or-bot')
+bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-2')
 
 def lambda_handler(event, context):
     # get the request origin
@@ -39,14 +38,7 @@ def lambda_handler(event, context):
     }
 
     try:
-        if event['routeKey'] == "GET /visitorCount":
-            visitor_counter_response = visitor_counter_table.get_item(Key={'id': 'visitor-counter'})
-            if not visitor_counter_response.get('Item'):
-                visitor_counter_table.put_item(Item={'id': 'visitor-counter', 'counter': Decimal('0'), 'name': 'Visitor Counter'})
-                visitor_counter_response = visitor_counter_table.get_item(Key={'id': 'visitor-counter'})
-            item = visitor_counter_response['Item']
-            body = [{'counter': float(item['counter']), 'id': item['id'], 'name': item['name']}]
-        elif event['routeKey'] == "POST /visitorCount/increment":
+        if event['routeKey'] == "POST /visitorCount/increment":
             requestJSON = json.loads(event['body'])
             event_data = {
                 'ip_address': event['requestContext']['http']['sourceIp'],
@@ -92,54 +84,12 @@ def lambda_handler(event, context):
                 "traffic_type": event_data['traffic_type']
             })
             body = [{'counter': float(requestJSON['counter']), 'id': requestJSON['id'], 'name': requestJSON['name']}]
-        elif event['routeKey'] == "POST /resume-summarizer":
-            request_body = json.loads(event['body'])
-            pdf_base64 = request_body['pdfBase64']  # frontend sends base64-encoded PDF
-    
-            response = bedrock_client.invoke_model(
-                modelId='us.anthropic.claude-haiku-4-5-20251001-v1:0',
-                body=json.dumps({
-                    'anthropic_version': 'bedrock-2023-05-31',
-                    'messages': [{
-                        'role': 'user',
-                        'content': [
-                            {
-                                'type': 'document',
-                                'source': {
-                                    'type': 'base64',
-                                    'media_type': 'application/pdf',
-                                    'data': pdf_base64
-                                }
-                            },
-                            {
-                                'type': 'text',
-                                'text': '''Please summarize this resume in HTML format. 
-                                Use the following structure:
-                                - A <h3> tag for the candidate name
-                                - A <p> tag for a 2-3 sentence professional summary
-                                - A <h4>Key Skills</h4> followed by a <ul> with <li> items
-                                - A <h4>Experience</h4> followed by a <ul> with <li> items for each role
-                                - A <h4>Education</h4> followed by a <ul> with <li> items
-
-                                Return only the HTML, no markdown, no code fences, no explanation. Remove the outer quotation marks and the html at the beginning.'''
-                            }
-                        ]
-                    }],
-                    'max_tokens': 1024
-                })
-            )
-            bedrock_body = json.loads(response['body'].read())
-            body = bedrock_body['content'][0]['text']
-            print("body extracted:", body[:100], flush=True)
-        elif event['routeKey'] == "OPTIONS /resume-summarizer":
-            return {
-                'statusCode': 200,
-                'headers': headers,
-                'body': ''
-            }
+    except Exception as e:
+        statusCode = 500
+        body = {'error': str(e)}
     except KeyError as e:
         statusCode = 400
-        body = 'Unsupported route: ' + str(e)
+        body = {'error': f'Unsupported route: {str(e)}'}
     body = json.dumps(body)
     res = {
         "statusCode": statusCode,

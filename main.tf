@@ -1,13 +1,29 @@
+# AWS provider
 provider "aws" {
     region = "us-east-2"
     profile = "cloud-resume-challenge"
 }
 
-data "archive_file" "lambda_function" {
+# Archive files
+data "archive_file" "resume_summarizer" {
     type = "zip"
 
     source_dir  = "${path.module}/src"
-    output_path = "${path.module}/lambda_function.zip"
+    output_path = "${path.module}/resume_summarizer.zip"
+}
+
+data "archive_file" "get_visitor_counter" {
+    type = "zip"
+
+    source_dir  = "${path.module}/src"
+    output_path = "${path.module}/get_visitor_counter.zip"
+}
+
+data "archive_file" "post_visitor_counter_increment" {
+    type = "zip"
+
+    source_dir  = "${path.module}/src"
+    output_path = "${path.module}/post_visitor_counter_increment.zip"
 }
 
 resource "random_pet" "lambda_bucket_name" {
@@ -33,31 +49,89 @@ resource "aws_s3_bucket_acl" "lambda_bucket" {
     acl    = "private"
 }
 
-resource "aws_s3_object" "lambda_function" {
+resource "aws_s3_object" "resume_summarizer" {
     bucket = aws_s3_bucket.lambda_bucket.id
 
-    key = "lambda_function.zip"
-    source = data.archive_file.lambda_function.output_path
-    etag = filemd5(data.archive_file.lambda_function.output_path)
+    key = "resume_summarizer.zip"
+    source = data.archive_file.resume_summarizer.output_path
+    etag = filemd5(data.archive_file.resume_summarizer.output_path)
 }
 
-resource "aws_lambda_function" "lambda_function" {
-    function_name = "cloud-resume-challenge"
+resource "aws_s3_object" "get_visitor_counter" {
+    bucket = aws_s3_bucket.lambda_bucket.id
+
+    key = "get_visitor_counter.zip"
+    source = data.archive_file.get_visitor_counter.output_path
+    etag = filemd5(data.archive_file.get_visitor_counter.output_path)
+}
+
+resource "aws_s3_object" "post_visitor_counter_increment" {
+    bucket = aws_s3_bucket.lambda_bucket.id
+
+    key = "post_visitor_counter_increment.zip"
+    source = data.archive_file.post_visitor_counter_increment.output_path
+    etag = filemd5(data.archive_file.post_visitor_counter_increment.output_path)
+}
+
+resource "aws_lambda_function" "resume_summarizer" {
+    function_name = "resume-summarizer"
 
     s3_bucket = aws_s3_bucket.lambda_bucket.id
-    s3_key    = aws_s3_object.lambda_function.key
+    s3_key    = aws_s3_object.resume_summarizer.key
 
     runtime = "python3.13"
-    handler = "lambda_function.lambda_handler"
+    handler = "resume_summarizer.lambda_handler"
 
-    source_code_hash = data.archive_file.lambda_function.output_base64sha256
+    source_code_hash = data.archive_file.resume_summarizer.output_base64sha256
 
     role = aws_iam_role.lambda_exec.arn 
     timeout = 30
 }
 
-resource "aws_cloudwatch_log_group" "lambda_function" {
-    name = "/aws/lambda/${aws_lambda_function.lambda_function.function_name}"
+resource "aws_cloudwatch_log_group" "resume_summarizer" {
+    name = "/aws/lambda/${aws_lambda_function.resume_summarizer.function_name}"
+
+    retention_in_days = 30
+} 
+
+resource "aws_lambda_function" "get_visitor_counter" {
+    function_name = "get_visitor_counter"
+
+    s3_bucket = aws_s3_bucket.lambda_bucket.id
+    s3_key    = aws_s3_object.get_visitor_counter.key
+
+    runtime = "python3.13"
+    handler = "get_visitor_counter.lambda_handler"
+
+    source_code_hash = data.archive_file.get_visitor_counter.output_base64sha256
+
+    role = aws_iam_role.lambda_exec.arn 
+    timeout = 30
+}
+
+resource "aws_cloudwatch_log_group" "get_visitor_counter" {
+    name = "/aws/lambda/${aws_lambda_function.get_visitor_counter.function_name}"
+
+    retention_in_days = 30
+} 
+
+resource "aws_lambda_function" "post_visitor_counter_increment" {
+    function_name = "post_visitor_counter_increment"
+
+    s3_bucket = aws_s3_bucket.lambda_bucket.id
+    s3_key    = aws_s3_object.post_visitor_counter_increment.key
+
+    runtime = "python3.13"
+    handler = "post_visitor_counter_increment.lambda_handler"
+
+    source_code_hash = data.archive_file.post_visitor_counter_increment.output_base64sha256
+
+    role = aws_iam_role.lambda_exec.arn 
+    timeout = 30
+}
+
+resource "aws_cloudwatch_log_group" "post_visitor_counter_increment" {
+    name = "/aws/lambda/${aws_lambda_function.post_visitor_counter_increment.function_name}"
 
     retention_in_days = 30
 } 
@@ -181,41 +255,61 @@ resource "aws_apigatewayv2_stage" "lambda" {
   }
 }
 
-resource "aws_apigatewayv2_integration" "lambda_function" {
+# API Gateway integrations
+resource "aws_apigatewayv2_integration" "resume_summarizer" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  integration_uri    = aws_lambda_function.lambda_function.invoke_arn
+  integration_uri    = aws_lambda_function.resume_summarizer.invoke_arn
   integration_type   = "AWS_PROXY"
   integration_method = "POST"
   payload_format_version = "2.0"
 }
 
-resource "aws_apigatewayv2_route" "lambda_function_get_visitor_counter" {
+resource "aws_apigatewayv2_integration" "get_visitor_counter" {
+  api_id = aws_apigatewayv2_api.lambda.id
+
+  integration_uri    = aws_lambda_function.get_visitor_counter.invoke_arn
+  integration_type   = "AWS_PROXY"
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_integration" "post_visitor_counter_increment" {
+  api_id = aws_apigatewayv2_api.lambda.id
+
+  integration_uri    = aws_lambda_function.post_visitor_counter_increment.invoke_arn
+  integration_type   = "AWS_PROXY"
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
+# API Gateway routes
+resource "aws_apigatewayv2_route" "get_visitor_counter" {
   api_id = aws_apigatewayv2_api.lambda.id
 
   route_key = "GET /visitorCount"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
+  target    = "integrations/${aws_apigatewayv2_integration.get_visitor_counter.id}"
 }
 
-resource "aws_apigatewayv2_route" "lambda_function_post_visitor_counter_increment" {
+resource "aws_apigatewayv2_route" "post_visitor_counter_increment" {
   api_id = aws_apigatewayv2_api.lambda.id
 
   route_key = "POST /visitorCount/increment"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
+  target    = "integrations/${aws_apigatewayv2_integration.post_visitor_counter_increment.id}"
 }
 
-resource "aws_apigatewayv2_route" "lambda_function_post_resume_summarizer" {
+resource "aws_apigatewayv2_route" "post_resume_summarizer" {
   api_id = aws_apigatewayv2_api.lambda.id
 
   route_key = "POST /resume-summarizer"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
+  target    = "integrations/${aws_apigatewayv2_integration.resume_summarizer.id}"
 }
 
-resource "aws_apigatewayv2_route" "lambda_function_options_resume_summarizer" {
+resource "aws_apigatewayv2_route" "options_resume_summarizer" {
   api_id = aws_apigatewayv2_api.lambda.id
 
   route_key = "OPTIONS /resume-summarizer"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
+  target    = "integrations/${aws_apigatewayv2_integration.resume_summarizer.id}"
 }
 
 resource "aws_cloudwatch_log_group" "api_gw" {
@@ -224,17 +318,35 @@ resource "aws_cloudwatch_log_group" "api_gw" {
   retention_in_days = 30
 }
 
-resource "aws_lambda_permission" "api_gw" {
+resource "aws_lambda_permission" "api_gw_resume_summarizer" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.lambda_function.function_name
+  function_name = aws_lambda_function.resume_summarizer.function_name
   principal     = "apigateway.amazonaws.com"
 
   source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
 }
 
-resource "aws_dynamodb_table" "cloud-resume-challenge" {
-  name           = "cloud-resume-challenge"
+resource "aws_lambda_permission" "api_gw_get_visitor_counter" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.get_visitor_counter.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "api_gw_post_visitor_counter_increment" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.post_visitor_counter_increment.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
+}
+
+resource "aws_dynamodb_table" "visitor_counter" {
+  name           = "visitor-counter"
   billing_mode   = "PROVISIONED"
   read_capacity  = 20
   write_capacity = 20
@@ -251,7 +363,7 @@ resource "aws_dynamodb_table" "cloud-resume-challenge" {
   }
 
   tags = {
-    Name        = "dynamodb-table-1"
+    Name        = "cloud-resume-challenge"
     Environment = "production"
   }
 }
@@ -274,7 +386,7 @@ resource "aws_dynamodb_table" "human_or_bot" {
   }
 
   tags = {
-    Name        = "human-or-bot"
+    Name        = "cloud-resume-challenge"
     Environment = "production"
   }
 }
