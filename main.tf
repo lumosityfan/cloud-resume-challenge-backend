@@ -105,7 +105,7 @@ resource "aws_lambda_function" "get_visitor_counter" {
 
     source_code_hash = data.archive_file.get_visitor_counter.output_base64sha256
 
-    role = aws_iam_role.lambda_exec.arn 
+    role = aws_iam_role.lambda_get_role.arn 
     timeout = 30
 }
 
@@ -126,7 +126,7 @@ resource "aws_lambda_function" "post_visitor_counter_increment" {
 
     source_code_hash = data.archive_file.post_visitor_counter_increment.output_base64sha256
 
-    role = aws_iam_role.lambda_exec.arn 
+    role = aws_iam_role.lambda_post_role.arn 
     timeout = 30
 }
 
@@ -136,6 +136,7 @@ resource "aws_cloudwatch_log_group" "post_visitor_counter_increment" {
     retention_in_days = 30
 } 
 
+# AWS IAM Roles
 resource "aws_iam_role" "lambda_exec" {
     name = "lambda_function"
 
@@ -152,23 +153,35 @@ resource "aws_iam_role" "lambda_exec" {
     })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_policy" {
-    role = aws_iam_role.lambda_exec.name
-    policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+resource "aws_iam_role" "lambda_get_role" {
+  name = "lambda_get_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
 }
 
-resource "aws_iam_role_policy_attachment" "dynamodb_policy" {
-  role = aws_iam_role.lambda_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+resource "aws_iam_role" "lambda_post_role" {
+  name = "lambda_post_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
 }
 
-resource "aws_iam_role_policy_attachment" "bedrock_policy" {
-  role       = aws_iam_role.lambda_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonBedrockFullAccess"
-}
-
-resource "aws_iam_role_policy" "bedrock_inference_profile" {
-  name = "bedrock-inference-profile"
+# AWS IAM Role Policies
+resource "aws_iam_role_policy" "bedrock_inference_profile_lambda_exec" {
+  name = "bedrock-inference-profile-lambda_exec"
   role = aws_iam_role.lambda_exec.id
 
   policy = jsonencode({
@@ -184,6 +197,87 @@ resource "aws_iam_role_policy" "bedrock_inference_profile" {
       }
     ]
   })
+}
+
+resource "aws_iam_role_policy" "bedrock_inference_profile_lambda_post_role" {
+  name = "bedrock-inference-profile-lambda-post-role"
+  role = aws_iam_role.lambda_post_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["bedrock:InvokeModel"]
+        Resource = [
+          "arn:aws:bedrock:us-east-2::foundation-model/*",
+          "arn:aws:bedrock:*:533266979920:inference-profile/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "get_policy" {
+  name = "get_read_only_policy"
+  role = aws_iam_role.lambda_get_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = aws_dynamodb_table.visitor_counter.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "post_policy" {
+  name = "post_write_only_policy"
+  role = aws_iam_role.lambda_post_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      { 
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.visitor_counter.arn
+      },
+      { 
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.human_or_bot.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_policy" {
+    role = aws_iam_role.lambda_exec.name
+    policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "get_basic_execution" {
+  role       = aws_iam_role.lambda_get_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "post_basic_execution" {
+  role       = aws_iam_role.lambda_post_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "bedrock_policy_lambda_exec" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonBedrockFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "bedrock_policy_lambda_post_role" {
+  role       = aws_iam_role.lambda_post_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonBedrockFullAccess"
 }
 
 resource "aws_apigatewayv2_api" "lambda" {

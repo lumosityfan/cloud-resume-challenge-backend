@@ -38,11 +38,11 @@ def lambda_handler(event, context):
     try:
         if event['routeKey'] == "GET /visitorCount":
             visitor_counter_response = visitor_counter_table.get_item(Key={'id': 'visitor-counter'})
-            if not visitor_counter_response.get('Item'):
-                visitor_counter_table.put_item(Item={'id': 'visitor-counter', 'counter': Decimal('0'), 'name': 'Visitor Counter'})
-                visitor_counter_response = visitor_counter_table.get_item(Key={'id': 'visitor-counter'})
-            item = visitor_counter_response['Item']
-            body = [{'counter': float(item['counter']), 'id': item['id'], 'name': item['name']}]
+            if 'Item' not in visitor_counter_response:
+                body = []
+            else:
+                item = visitor_counter_response['Item']
+                body = [{'counter': float(item['counter']), 'id': item['id'], 'name': item['name']}]
     except Exception as e:
         statusCode = 500
         body = {'error': str(e)}
