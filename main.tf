@@ -193,7 +193,14 @@ resource "aws_apigatewayv2_integration" "lambda_function" {
 resource "aws_apigatewayv2_route" "lambda_function_get_visitor_counter" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  route_key = "GET /visitor-counter"
+  route_key = "GET /visitorCount"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
+}
+
+resource "aws_apigatewayv2_route" "lambda_function_post_visitor_counter_increment" {
+  api_id = aws_apigatewayv2_api.lambda.id
+
+  route_key = "POST /visitorCount/increment"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_function.id}"
 }
 

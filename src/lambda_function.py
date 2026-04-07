@@ -11,7 +11,6 @@ visitor_counter_table = dynamodb.Table('cloud-resume-challenge')
 tableName = 'cloud-resume-challenge'
 human_or_bot_table = dynamodb.Table('human-or-bot')
 
-
 def lambda_handler(event, context):
     # get the request origin
     origin = event.get('headers', {}).get('origin', '')
@@ -40,7 +39,15 @@ def lambda_handler(event, context):
     }
 
     try:
-        if event['routeKey'] == "GET /visitor-counter":
+        if event['routeKey'] == "GET /visitorCount":
+            visitor_counter_response = visitor_counter_table.get_item(Key={'id': 'visitor-counter'})
+            if not visitor_counter_response.get('Item'):
+                visitor_counter_table.put_item(Item={'id': 'visitor-counter', 'counter': Decimal('0'), 'name': 'Visitor Counter'})
+                visitor_counter_response = visitor_counter_table.get_item(Key={'id': 'visitor-counter'})
+            item = visitor_counter_response['Item']
+            body = [{'counter': float(item['counter']), 'id': item['id'], 'name': item['name']}]
+        elif event['routeKey'] == "POST /visitorCount/increment":
+            requestJSON = json.loads(event['body'])
             event_data = {
                 'ip_address': event['requestContext']['http']['sourceIp'],
                 'user_agent': event['requestContext']['http']['userAgent'],
@@ -66,40 +73,25 @@ def lambda_handler(event, context):
             bedrock_body = json.loads(bedrock_response['body'].read())
             if "REAL USER" in bedrock_body['content'][0]['text']:
                 event_data["traffic_type"] = "likely human"
-                visitor_counter_response = visitor_counter_table.update_item(
-                    Key={'id': 'visitor-counter'},
-                    UpdateExpression='ADD #c :inc SET #n = if_not_exists(#n, :name)',
-                    ExpressionAttributeNames={
-                        '#c': 'counter',
-                        '#n': 'name'
-                    },
-                    ExpressionAttributeValues={
-                        ':inc': Decimal('1'),
-                        ':name': 'Visitor Counter'
-                    },
-                    ReturnValues='ALL_NEW'
-                )
+                requestJSON['counter'] = requestJSON['counter'] + 1
+                visitor_counter_table.put_item(
+                    Item={
+                        'id': requestJSON['id'],
+                        'counter': requestJSON['counter'],
+                        'name': requestJSON['name']
+                    })
             elif "BOT-LIKE" in bedrock_body['content'][0]['text']:
                 event_data["traffic_type"] = "likely bot"
-                visitor_counter_response = visitor_counter_table.get_item(Key={'id': 'visitor-counter'})
+            else:
+                event_data["traffic_type"] = "inconclusive"
             human_or_bot_table.put_item(Item={
-                    "ip_address": hash(event_data['ip_address']),
-                    "user_agent": event_data['user_agent'],
-                    "referer": event_data['referer'],
-                    "timestamp": event_data['timestamp'],
-                    "traffic_type": event_data['traffic_type']
+                "ip_address": hash(event_data['ip_address']),
+                "user_agent": event_data['user_agent'],
+                "referer": event_data['referer'],
+                "timestamp": event_data['timestamp'],
+                "traffic_type": event_data['traffic_type']
             })
-            item = visitor_counter_response['Attributes']
-            body = [{'counter': float(item['counter']), 'id': item['id'], 'name': item['name']}]
-        elif event['routeKey'] == "POST /visitor-counter":
-            requestJSON = json.loads(event['body'])
-            visitor_counter_table.put_item(
-                Item={
-                    'id': requestJSON['id'],
-                    'counter': requestJSON['counter'],
-                    'name': requestJSON['name']
-                })
-            body = 'Put item ' + requestJSON['id']
+            body = [{'counter': float(requestJSON['counter']), 'id': requestJSON['id'], 'name': requestJSON['name']}]
         elif event['routeKey'] == "POST /resume-summarizer":
             request_body = json.loads(event['body'])
             pdf_base64 = request_body['pdfBase64']  # frontend sends base64-encoded PDF
