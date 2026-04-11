@@ -39,6 +39,7 @@ def lambda_handler(event, context):
 
     try:
         if event['routeKey'] == "POST /uniqueVisitorCount/increment":
+            # Get ip address
             ip_address = event['requestContext']['http']['sourceIp']
             ip_hash = hashlib.md5(ip_address.encode()).hexdigest()
 
