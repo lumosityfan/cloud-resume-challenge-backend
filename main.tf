@@ -520,7 +520,7 @@ resource "aws_lambda_permission" "api_gw_post_unique_visitor_counter_increment" 
   function_name = aws_lambda_function.post_unique_visitor_counter_increment.function_name
   principal     = "apigateway.amazonaws.com"
 
-  source_arn    = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
+  source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
 }
 
 resource "aws_dynamodb_table" "visitor_counter" {
