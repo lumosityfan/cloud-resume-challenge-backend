@@ -49,7 +49,7 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: us-east-2
       run: |
-        terraform plan -input=false -detailedexitcode -out=tfplan 2>%1 | tee plan_output.txt
+        terraform plan -detailed-exitcode > plan_output.txt || true
         echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
       continue-on-error: true
 
