@@ -1,0 +1,65 @@
+# .github/workflows/drift-detection.yml
+name: 'Drift Detection'
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # Runs every 5 minutes
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    environment: production
+
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terraform Init
+      run: terraform init
+
+    # Checks that all Terraform configuration files adhere to a canonical format
+    - name: Terraform Format
+      run: terraform fmt -check
+
+    # Generates an execution plan for Terraform
+    - name: Terraform Plan
+      id: plan
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: us-east-2
+      run: |
+        terraform plan -detailed-exitcode > plan_output.txt || true
+        echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+      continue-on-error: true
+
+    - name: Notify on drift
+      if: steps.plan.outputs.exit_code == '2' # An exit code of 2 indicates that there are changes to be applied, which may indicate drift
+      uses: peter-evans/create-or-update-comment@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        issue-number: ${{ github.event.pull_request.number || github.run_id }}
+        body: |
+          ## Drift Detection Alert
+          Drift has been detected in the Terraform-managed infrastructure. Please review the [Terraform plan output](plan_output.txt) for details on the changes that would be applied.
+        reactions: '+1'
