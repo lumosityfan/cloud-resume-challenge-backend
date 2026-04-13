@@ -33,7 +33,7 @@ def lambda_handler(event, context):
     headers = {
         "Content-Type": "application/json",
         'Access-Control-Allow-Origin': cors_origin,
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Content-Type, Cache-Control',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     }
 

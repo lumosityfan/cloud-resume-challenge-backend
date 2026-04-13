@@ -330,7 +330,7 @@ resource "aws_apigatewayv2_api" "lambda" {
       "http://127.0.0.1:5500"
     ]
     allow_methods = ["GET", "POST", "OPTIONS"]
-    allow_headers = ["Content-Type"]
+    allow_headers = ["Content-Type", "Cache-Control"]
     max_age       = 300
   }
 }
