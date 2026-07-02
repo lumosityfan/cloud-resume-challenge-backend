@@ -47,7 +47,70 @@ def extract_text(uploaded_file):
         return uploaded_file.read().decode("utf-8", errors="ignore")
 
 
+import re
+from urllib.parse import urlparse
+
+
+def extract_ashby_job_text(url):
+    """Ashby job pages are client-side rendered — the raw HTML only
+    contains the title. Use Ashby's public job-board API instead."""
+    parsed = urlparse(url)
+    path_parts = [p for p in parsed.path.split("/") if p]
+
+    if len(path_parts) < 1:
+        return None, None  # not a recognizable Ashby URL, fall back
+
+    company_slug = path_parts[0]
+    api_url = f"https://api.ashbyhq.com/posting-api/job-board/{company_slug}"
+
+    try:
+        resp = requests.get(api_url, params={"includeCompensation": "false"}, timeout=10)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        return None, f"Error fetching job data from Ashby: {e}"
+
+    data = resp.json()
+    jobs = data.get("jobs", [])
+
+    # Match by jobId (last path segment) first, fall back to exact jobUrl match
+    job_id = path_parts[-1] if len(path_parts) > 1 else None
+    match = None
+    for job in jobs:
+        job_url_parts = [p for p in urlparse(job.get("jobUrl", "")).path.split("/") if p]
+        if job_id and job_url_parts and job_url_parts[-1] == job_id:
+            match = job
+            break
+        if job.get("jobUrl", "").rstrip("/") == url.rstrip("/"):
+            match = job
+            break
+
+    if not match:
+        return None, "Couldn't find that specific job posting on the company's Ashby board (it may be unlisted or expired)."
+
+    description = match.get("descriptionPlain")
+    if not description:
+        html_desc = match.get("descriptionHtml", "")
+        description = BeautifulSoup(html_desc, "html.parser").get_text(separator="\n")
+
+    title = match.get("title", "")
+    full_text = f"{title}\n\n{description}".strip()
+
+    if len(full_text) < 100:
+        return None, "The extracted job posting is too short to be a valid job description."
+
+    return full_text, None
+
+
 def extract_job_text_from_url(url):
+    if "jobs.ashbyhq.com" in urlparse(url).netloc:
+        text, error = extract_ashby_job_text(url)
+        if text is not None:
+            return text, None
+        if error:
+            return None, error
+        # fall through to generic scraping if Ashby-specific extraction
+        # didn't apply (e.g. malformed URL)
+
     try:
         response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         response.raise_for_status()
