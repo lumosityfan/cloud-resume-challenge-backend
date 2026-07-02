@@ -3,6 +3,33 @@ provider "aws" {
   region = "us-east-2"
 }
 
+module "job_match_lambda" {
+  source  = "terraform-aws-modules/lambda/aws"
+  version = "~> 7.0"
+
+  function_name = "job-match-calculator"
+  handler       = "job_match_calculator.lambda_handler"
+  runtime       = "python3.12"
+  architectures = ["x86_64"]
+  timeout       = 30
+
+  source_path = [
+    {
+      path             = "${path.module}/src"          # folder containing job_match_calculator.py
+      pip_requirements  = "${path.module}/src/requirements.txt"
+    }
+  ]
+
+  # Build inside a Lambda-compatible Docker image so compiled wheels
+  # (pydantic-core etc., used by openai) match the Lambda runtime,
+  # regardless of what OS/CPU you're developing on.
+  build_in_docker = true
+
+  environment_variables = {
+    OPENAI_API_KEY = var.openai_api_key
+  }
+}
+
 # Archive files
 data "archive_file" "resume_summarizer" {
   type = "zip"
@@ -418,6 +445,15 @@ resource "aws_apigatewayv2_integration" "resume_summarizer" {
   payload_format_version = "2.0"
 }
 
+resource "aws_apigatewayv2_integration" "job_match_calculator" {
+  api_id = aws_apigatewayv2_api.lambda.id
+
+  integration_uri        = module.job_match_lambda.lambda_function_invoke_arn
+  integration_type       = "AWS_PROXY"
+  integration_method     = "POST"
+  payload_format_version = "2.0"
+}
+
 resource "aws_apigatewayv2_integration" "get_visitor_counter" {
   api_id = aws_apigatewayv2_api.lambda.id
 
@@ -481,6 +517,20 @@ resource "aws_apigatewayv2_route" "options_resume_summarizer" {
   target    = "integrations/${aws_apigatewayv2_integration.resume_summarizer.id}"
 }
 
+resource "aws_apigatewayv2_route" "post_job_match_calculator" {
+  api_id = aws_apigatewayv2_api.lambda.id
+
+  route_key = "POST /job-match-calculator"
+  target    = "integrations/${aws_apigatewayv2_integration.job_match_calculator.id}"
+}
+
+resource "aws_apigatewayv2_route" "options_job_match_calculator" {
+  api_id = aws_apigatewayv2_api.lambda.id
+
+  route_key = "OPTIONS /job-match-calculator"
+  target    = "integrations/${aws_apigatewayv2_integration.job_match_calculator.id}"
+}
+
 resource "aws_cloudwatch_log_group" "api_gw" {
   name = "/aws/api_gw/${aws_apigatewayv2_api.lambda.name}"
 
@@ -491,6 +541,15 @@ resource "aws_lambda_permission" "api_gw_resume_summarizer" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.resume_summarizer.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "api_gw_job_match_calculator" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = module.job_match_lambda.lambda_function_name
   principal     = "apigateway.amazonaws.com"
 
   source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
