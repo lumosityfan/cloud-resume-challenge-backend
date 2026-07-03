@@ -15,8 +15,8 @@ module "job_match_lambda" {
 
   source_path = [
     {
-      path             = "${path.module}/src"          # folder containing job_match_calculator.py
-      pip_requirements  = "${path.module}/src/requirements.txt"
+      path             = "${path.module}/src" # folder containing job_match_calculator.py
+      pip_requirements = "${path.module}/src/requirements.txt"
     }
   ]
 
