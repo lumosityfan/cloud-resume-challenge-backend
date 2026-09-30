@@ -27,6 +27,19 @@ module "job_match_lambda" {
 
   environment_variables = {
     OPENAI_API_KEY = var.openai_api_key
+    RATE_LIMIT_TABLE = aws_dynamodb_table.rate_limiter.name
+  }
+
+  # Every call here costs OpenAI $, so the Lambda-size per-IP rate 
+  # limiter (src/rate_limiter.py) needs write access to the shared
+  # rate-limiter table.
+  attach_policy_statements = true
+  policy_statements = {
+    rate_limiter_dynamodb = {
+      effect    = "Allow"
+      actions   = ["dynamodb:UpdateItem"]
+      resources = [aws_dynamodb_table.rate_limiter.arn]
+    }
   }
 }
 
@@ -127,6 +140,12 @@ resource "aws_lambda_function" "resume_summarizer" {
 
   role    = aws_iam_role.lambda_exec.arn
   timeout = 30
+
+  environment {
+    variables = {
+      RATE_LIMIT_TABLE = aws_dynamodb_table.rate_limiter.name
+    }
+  }
 }
 
 resource "aws_cloudwatch_log_group" "resume_summarizer" {
@@ -377,6 +396,21 @@ resource "aws_iam_role" "api_gw_cloudwatch" {
   })
 }
 
+resource "aws_iam_role_policy" "rate_limiter_lambda_exec" {
+  name = "rate-limiter-lambda-exec"
+  role = aws_iam_role.lambda_exec.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:UpdateItem"]
+        Resource = aws_dynamodb_table.rate_limiter.arn
+      }
+    ]
+  })
+}
 resource "aws_iam_role_policy" "unique_visitor_dynamodb_policy" {
   name = "unique_visitor_dynamodb_policy"
   role = aws_iam_role.lambda_exec.id
@@ -415,6 +449,28 @@ resource "aws_apigatewayv2_stage" "lambda" {
 
   name        = "$default"
   auto_deploy = true
+
+  default_route_settings {
+    throttling_burst_limit = 10
+    throttling_rate_limit  = 5
+  }
+
+  # resume-summarizer and job-match-calculator call paid, metered AI 
+  # APIs (Bedrock / OpenAI) per request, so they get a much tighter
+  # ceiling than the rest of the API. This is a coarse, account-wide backstop against traffic bursts; the real per-caller cost control 
+  # is the DynamoDB rate limiter inside the Lambda code itself 
+  # (src/rate_limiter.py).
+  route_settings {
+    route_key              = "POST /resume-summarizer"
+    throttling_burst_limit = 2
+    throttling_rate_limit = 1
+  }
+
+  route_settings {
+    route_key              = "POST /job-match-calculator"
+    throttling_burst_limit = 2
+    throttling_rate_limit = 1
+  }
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_gw.arn
@@ -647,6 +703,31 @@ resource "aws_dynamodb_table" "unique_visitor_counter" {
 
   tags = {
     Name        = "cloud-resume-challenge"
+    Environment = "production"
+  }
+}
+
+resource "aws_dynamodb_table" "rate_limiter" {
+  name = "rate-limiter"
+
+  # Traffic here is bursty and low-volume (a personal site, not a 
+  # product) - pay-per-request avoids having to guess/tune fixed
+  # capacity for something that's hit once per AI-endpoint call.
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "rate_key"
+
+  attribute {
+    name = "rate_key"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expire_at"
+    enabled        = true
+  }
+
+  tags = {
+    Name        = "cloud-resume-challnge"
     Environment = "production"
   }
 }

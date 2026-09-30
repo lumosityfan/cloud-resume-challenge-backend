@@ -4,6 +4,8 @@ import sys
 import base64
 from decimal import Decimal
 
+from rate_limiter import check_rate_limit, rate_limit_response, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS
+
 bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-2')
 
 def lambda_handler(event, context):
@@ -35,6 +37,14 @@ def lambda_handler(event, context):
 
     try:
         if event['routeKey'] == "POST /resume-summarizer":
+            if not check_rate_limit(
+                event,
+                "resume-summarizer",
+                max_requests=RATE_LIMIT_MAX_REQUESTS,
+                window_seconds=RATE_LIMIT_WINDOW_SECONDS,
+            ):
+                return rate_limit_response(headers)
+            
             request_body = json.loads(event['body'])
             pdf_base64 = request_body['pdfBase64']  # frontend sends base64-encoded PDF
     

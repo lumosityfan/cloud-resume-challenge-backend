@@ -8,6 +8,8 @@ import docx2txt
 import requests
 from bs4 import BeautifulSoup
 
+from rate_limiter import check_rate_limit, rate_limit_response, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS
+
 client = OpenAI()
 
 
@@ -167,6 +169,14 @@ def lambda_handler(event, context):
 
     try:
         if event['routeKey'] == "POST /job-match-calculator":
+            if not check_rate_limit(
+                event,
+                "job-match-calculator",
+                max_requests=RATE_LIMIT_MAX_REQUESTS,
+                window_seconds=RATE_LIMIT_WINDOW_SECONDS,
+            ):
+                return rate_limit_response(headers)
+            
             request_body = json.loads(event['body'])
             job_description = request_body.get("jobDescription")
             job_url = request_body.get("jobUrl")

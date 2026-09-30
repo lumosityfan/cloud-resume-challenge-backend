@@ -6,10 +6,10 @@ import hashlib
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 
-dynamodb_client = boto3.client('dynamodb')
 dynamodb = boto3.resource("dynamodb")
 unique_visitor_counter_table = dynamodb.Table('unique-visitor-counter')
 visitor_counter_table = dynamodb.Table('visitor-counter')
+
 def lambda_handler(event, context):
     # get the request origin
     origin = event.get('headers', {}).get('origin', '')
@@ -78,6 +78,7 @@ def lambda_handler(event, context):
                         }
                     )
             unique_visitor_counter_total = unique_visitor_counter_table.scan(Select='COUNT')['Count']
+            print(f"Unique Visitor Counter Total: {unique_visitor_counter_total}")
             body = {'unique_visitor_counter': unique_visitor_counter_total}
     except KeyError as e:
         statusCode = 400
