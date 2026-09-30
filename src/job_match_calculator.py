@@ -2,6 +2,8 @@ import os
 import json
 import io
 import base64
+import ipaddress
+import socket
 from openai import OpenAI
 from pypdf import PdfReader
 import docx2txt
@@ -52,7 +54,35 @@ def extract_text(uploaded_file):
 import re
 from urllib.parse import urlparse
 
+class UnsafeUrlError(ValueError):
+    """The caller-supplied job URL isn't safe to fetch server-side."""
 
+def _assert_public_http_url(url):
+    """Guard against SSRF"""
+    parsed = urlparse(url)
+
+    if parsed.scheme not in ("http", "https"):
+        raise UnsafeUrlError("Only http:// and https:// job URLs are supported")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise UnsafeUrlError("That doesn't look like a valid URL")
+
+    try:
+        addrinfo = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        raise UnsafeUrlError("Couldn't resolve that URL's host")
+
+    for family, _, _, _, sockaddr in addrinfo:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            raise UnsafeUrlError("That URL points to a non-public address, which isn't allowed")
 def extract_ashby_job_text(url):
     """Ashby job pages are client-side rendered — the raw HTML only
     contains the title. Use Ashby's public job-board API instead."""
@@ -104,6 +134,11 @@ def extract_ashby_job_text(url):
 
 
 def extract_job_text_from_url(url):
+    try:
+        _assert_public_http_url(url)
+    except UnsafeUrlError as e:
+        return None, str(e)
+    
     if "jobs.ashbyhq.com" in urlparse(url).netloc:
         text, error = extract_ashby_job_text(url)
         if text is not None:
