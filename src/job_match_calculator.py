@@ -9,6 +9,7 @@ from pypdf import PdfReader
 import docx2txt
 import requests
 from bs4 import BeautifulSoup
+from allowed_origins import allowed_origins
 
 from rate_limiter import check_rate_limit, rate_limit_response, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS
 
@@ -170,17 +171,6 @@ def extract_job_text_from_url(url):
 
 def lambda_handler(event, context):
     origin = event.get('headers', {}).get('origin', '')
-
-    allowed_origins = [
-        'http://localhost:3000',
-        'http://localhost:5500',
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
-        'http://127.0.0.1:5500',
-        'http://www.jeffxieresumewebsite.com',
-        'http://jeffxieresumewebsite.com',
-        'http://jeffxieresumewebsite.com.s3-website.us-east-2.amazonaws.com',
-    ]
 
     cors_origin = origin if origin in allowed_origins else '*'
     headers = {

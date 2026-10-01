@@ -5,6 +5,7 @@ import base64
 import hashlib
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
+from allowed_origins import allowed_origins
 
 dynamodb = boto3.resource("dynamodb")
 unique_visitor_counter_table = dynamodb.Table('unique-visitor-counter')
@@ -13,18 +14,6 @@ visitor_counter_table = dynamodb.Table('visitor-counter')
 def lambda_handler(event, context):
     # get the request origin
     origin = event.get('headers', {}).get('origin', '')
-
-    # allowlist of valid origins
-    allowed_origins = [
-        'http://localhost:3000',
-        'http://localhost:5500',
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
-        'http://127.0.0.1:5500',
-        'http://www.jeffxieresumewebsite.com',
-        'http://jeffxieresumewebsite.com',
-        'http://jeffxieresumewebsite.com.s3-website.us-east-2.amazonaws.com',
-    ]
 
     # temporary: allow all origins while testing locally
     cors_origin = origin if origin in allowed_origins else '*'
@@ -54,7 +43,7 @@ def lambda_handler(event, context):
                 visitor_counter_table.update_item(
                     Key={'id': 'unique-visitor-counter', 'name': 'Unique Visitor Counter'},
                     UpdateExpression='SET counter = if_not_exists(counter, :start) + :inc',
-                ExpressionAttributeValues={
+                    ExpressionAttributeValues={
                         ':inc': Decimal(1),
                         ':start': Decimal(0)
                     }

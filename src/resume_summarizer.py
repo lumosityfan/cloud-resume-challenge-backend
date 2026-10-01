@@ -3,6 +3,7 @@ import boto3
 import sys
 import base64
 from decimal import Decimal
+from allowed_origins import allowed_origins
 
 from rate_limiter import check_rate_limit, rate_limit_response, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS
 
@@ -11,18 +12,6 @@ bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-2')
 def lambda_handler(event, context):
     # get the request origin
     origin = event.get('headers', {}).get('origin', '')
-
-    # allowlist of valid origins
-    allowed_origins = [
-        'http://localhost:3000',
-        'http://localhost:5500',
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
-        'http://127.0.0.1:5500',
-        'http://www.jeffxieresumewebsite.com',
-        'http://jeffxieresumewebsite.com',
-        'http://jeffxieresumewebsite.com.s3-website.us-east-2.amazonaws.com',
-    ]
 
     # temporary: allow all origins while testing locally
     cors_origin = origin if origin in allowed_origins else '*'

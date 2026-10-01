@@ -26,7 +26,7 @@ module "job_match_lambda" {
   build_in_docker = true
 
   environment_variables = {
-    OPENAI_API_KEY = var.openai_api_key
+    OPENAI_API_KEY   = var.openai_api_key
     RATE_LIMIT_TABLE = aws_dynamodb_table.rate_limiter.name
   }
 
@@ -399,7 +399,7 @@ resource "aws_iam_role" "api_gw_cloudwatch" {
 resource "aws_iam_role_policy" "rate_limiter_lambda_exec" {
   name = "rate-limiter-lambda-exec"
   role = aws_iam_role.lambda_exec.id
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -463,13 +463,13 @@ resource "aws_apigatewayv2_stage" "lambda" {
   route_settings {
     route_key              = "POST /resume-summarizer"
     throttling_burst_limit = 2
-    throttling_rate_limit = 1
+    throttling_rate_limit  = 1
   }
 
   route_settings {
     route_key              = "POST /job-match-calculator"
     throttling_burst_limit = 2
-    throttling_rate_limit = 1
+    throttling_rate_limit  = 1
   }
 
   access_log_settings {
@@ -639,11 +639,12 @@ resource "aws_lambda_permission" "api_gw_post_unique_visitor_counter_increment" 
 }
 
 resource "aws_dynamodb_table" "visitor_counter" {
-  name           = "visitor-counter"
-  billing_mode   = "PROVISIONED"
-  read_capacity  = 20
-  write_capacity = 20
-  hash_key       = "id"
+  name         = "visitor-counter"
+  billing_mode = "PAY_PER_REQUEST"
+  # billing_mode   = "PROVISIONED"
+  # read_capacity  = 20
+  # write_capacity = 20
+  hash_key = "id"
 
   attribute {
     name = "id"
@@ -662,11 +663,12 @@ resource "aws_dynamodb_table" "visitor_counter" {
 }
 
 resource "aws_dynamodb_table" "human_or_bot" {
-  name           = "human-or-bot"
-  billing_mode   = "PROVISIONED"
-  read_capacity  = 20
-  write_capacity = 20
-  hash_key       = "ip_address"
+  name         = "human-or-bot"
+  billing_mode = "PAY_PER_REQUEST"
+  # billing_mode   = "PROVISIONED"
+  # read_capacity  = 20
+  # write_capacity = 20
+  hash_key = "ip_address"
 
   attribute {
     name = "ip_address"
@@ -685,11 +687,12 @@ resource "aws_dynamodb_table" "human_or_bot" {
 }
 
 resource "aws_dynamodb_table" "unique_visitor_counter" {
-  name           = "unique-visitor-counter"
-  billing_mode   = "PROVISIONED"
-  read_capacity  = 20
-  write_capacity = 20
-  hash_key       = "ip_address"
+  name         = "unique-visitor-counter"
+  billing_mode = "PAY_PER_REQUEST"
+  # billing_mode   = "PROVISIONED"
+  # read_capacity  = 20
+  # write_capacity = 20
+  hash_key = "ip_address"
 
   attribute {
     name = "ip_address"
