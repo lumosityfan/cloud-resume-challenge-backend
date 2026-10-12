@@ -1,4 +1,11 @@
 terraform {
+  backend "s3" {
+    bucket       = "cloud-resume-challenge-backend-tfstate"
+    key          = "cloud-resume-backend/terraform.tfstate"
+    region       = "us-east-2"
+    encrypt      = true
+    use_lockfile = true
+  }
   required_providers {
     aws = {
       source = "hashicorp/aws"
