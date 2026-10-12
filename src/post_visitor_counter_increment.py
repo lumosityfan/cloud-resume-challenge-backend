@@ -54,7 +54,7 @@ def lambda_handler(event, context):
                         'content': [
                             {
                                 'type': 'text',
-                                'text': f'''Given the following visitor data in JSON format, classify if the user is real or bot-like, and rate intent to bounce. Here's the visitor data: {json.dumps(event_data)}'''
+                                'text': f'''Given the following visitor data in JSON format, classify if the user is real or bot-like, and rate intent to bounce.  Reply with exactly REAL USER or BOT-LIKE. Here's the visitor data: {json.dumps(event_data)}'''
                             }
                         ]
                     }],
@@ -65,9 +65,10 @@ def lambda_handler(event, context):
             if "REAL USER" in bedrock_body['content'][0]['text']:
                 event_data["traffic_type"] = "likely human"
                 visitor_counter_table.update_item(
-                    Key={'id': 'visitor-counter', 'name': 'Visitor Counter'},
-                    UpdateExpression='SET counter = if_not_exists(counter, :start) + :inc',
+                    Key={'id': 'visitor-counter'},
+                    UpdateExpression='SET counter = if_not_exists(counter, :start) + :inc, name = :name',
                     ExpressionAttributeValues={
+                        ':name': 'Visitor Counter',
                         ':inc': Decimal(1),
                         ':start': Decimal(0)
                     }

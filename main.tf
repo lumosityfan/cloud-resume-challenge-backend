@@ -331,6 +331,11 @@ resource "aws_iam_role_policy" "post_policy" {
         Effect   = "Allow"
         Action   = ["dynamodb:PutItem"]
         Resource = aws_dynamodb_table.human_or_bot.arn
+      },
+      {
+        Effect   = "Allow",
+        Action   = ["dynamodb:UpdateItem"]
+        Resource = aws_dynamodb_table.visitor_counter.arn
       }
     ]
   })
@@ -409,6 +414,19 @@ resource "aws_iam_role_policy" "rate_limiter_lambda_exec" {
         Resource = aws_dynamodb_table.rate_limiter.arn
       }
     ]
+  })
+}
+
+resource "aws_iam_role_policy" "rate_limiter_lambda_post" {
+  name = "rate-limiter-lambda-post"
+  role = aws_iam_role.lambda_post_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect   = "Allow",
+      Action   = ["dynamodb:UpdateItem"],
+      Resource = aws_dynamodb_table.rate_limiter.arn
+    }]
   })
 }
 resource "aws_iam_role_policy" "unique_visitor_dynamodb_policy" {

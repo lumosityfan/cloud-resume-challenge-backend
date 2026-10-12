@@ -41,7 +41,7 @@ def lambda_handler(event, context):
                     'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f') + 'Z'
                 })
                 visitor_counter_table.update_item(
-                    Key={'id': 'unique-visitor-counter', 'name': 'Unique Visitor Counter'},
+                    Key={'id': 'unique-visitor-counter'},
                     UpdateExpression='SET counter = if_not_exists(counter, :start) + :inc',
                     ExpressionAttributeValues={
                         ':inc': Decimal(1),
