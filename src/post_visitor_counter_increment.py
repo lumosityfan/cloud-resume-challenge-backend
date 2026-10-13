@@ -3,6 +3,7 @@ import boto3
 import sys
 import base64
 import hashlib
+import traceback
 from decimal import Decimal
 from allowed_origins import allowed_origins
 
@@ -54,7 +55,7 @@ def lambda_handler(event, context):
                         'content': [
                             {
                                 'type': 'text',
-                                'text': f'''Given the following visitor data in JSON format, classify if the user is real or bot-like, and rate intent to bounce.  Reply with exactly REAL USER or BOT-LIKE. Here's the visitor data: {json.dumps(event_data)}'''
+                                'text': f'''Classify whether this visitor is a real person or a bot, based on the data below. Reply with exactly one of: REAL USER or BOT-LIKE. Here's the visitor data: {json.dumps(event_data)}'''
                             }
                         ]
                     }],
@@ -62,25 +63,23 @@ def lambda_handler(event, context):
                 })
             )
             bedrock_body = json.loads(bedrock_response['body'].read())
-            if "REAL USER" in bedrock_body['content'][0]['text']:
+            verdict = bedrock_body['content'][0]['text']
+            current= requestJSON['counter'] # fallback if we don't increment
+            if "REAL USER" in verdict:
                 event_data["traffic_type"] = "likely human"
-                visitor_counter_table.update_item(
+                updated = visitor_counter_table.update_item(
                     Key={'id': 'visitor-counter'},
-                    UpdateExpression='SET counter = if_not_exists(counter, :start) + :inc, name = :name',
+                    UpdateExpression='SET #c = if_not_exists(#c, :start) + :inc, #n = :name',
+                    ExpressionAttributeNames={'#c': 'counter', '#n': 'name'},
                     ExpressionAttributeValues={
                         ':name': 'Visitor Counter',
                         ':inc': Decimal(1),
                         ':start': Decimal(0)
-                    }
+                    },
+                    ReturnValues='ALL_NEW'
                 )
-                # requestJSON['counter'] = requestJSON['counter'] + 1
-                # visitor_counter_table.put_item(
-                #     Item={
-                #         'id': requestJSON['id'],
-                #         'counter': requestJSON['counter'],
-                #         'name': requestJSON['name']
-                #     })
-            elif "BOT-LIKE" in bedrock_body['content'][0]['text']:
+                current = updated['Attributes']['counter']
+            elif "BOT-LIKE" in verdict:
                 event_data["traffic_type"] = "likely bot"
             else:
                 event_data["traffic_type"] = "inconclusive"
@@ -91,11 +90,12 @@ def lambda_handler(event, context):
                 "timestamp": event_data['timestamp'],
                 "traffic_type": event_data['traffic_type']
             })
-            body = [{'counter': float(requestJSON['counter']), 'id': requestJSON['id'], 'name': requestJSON['name']}]
+            body = [{'counter': float(current), 'id': 'visitor-counter', 'name': 'Visitor Counter'}]
     except KeyError as e:
         statusCode = 400
         body = {'error': f'Unsupported route: {str(e)}'}
     except Exception as e:
+        print(traceback.format_exc())
         statusCode = 500
         body = {'error': str(e)}
     body = json.dumps(body)

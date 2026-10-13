@@ -3,6 +3,7 @@ import boto3
 import sys
 import base64
 import hashlib
+import traceback
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 from allowed_origins import allowed_origins
@@ -73,6 +74,7 @@ def lambda_handler(event, context):
         statusCode = 400
         body = {'error': f'Unsupported route: {str(e)}'}
     except Exception as e:
+        print(traceback.format_exc())
         statusCode = 500
         body = {'error': str(e)}
     body = json.dumps(body)

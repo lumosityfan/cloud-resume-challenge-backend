@@ -4,6 +4,7 @@ import io
 import base64
 import ipaddress
 import socket
+import traceback
 from openai import OpenAI
 from pypdf import PdfReader
 import docx2txt
@@ -277,6 +278,7 @@ JOB DESCRIPTION:
             body = {"error": f"No handler for route {event.get('routeKey')}"}
 
     except Exception as e:
+        print(traceback.format_exc())
         statusCode = 500
         body = {"error": "Error processing the request: " + str(e)}
 
