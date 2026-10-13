@@ -683,14 +683,11 @@ resource "aws_dynamodb_table" "visitor_counter" {
 resource "aws_dynamodb_table" "human_or_bot" {
   name         = "human-or-bot"
   billing_mode = "PAY_PER_REQUEST"
-  # billing_mode   = "PROVISIONED"
-  # read_capacity  = 20
-  # write_capacity = 20
   hash_key = "ip_address"
 
   attribute {
     name = "ip_address"
-    type = "N"
+    type = "S"
   }
 
   ttl {
