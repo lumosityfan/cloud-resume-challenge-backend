@@ -1,6 +1,12 @@
-# AWS provider
-provider "aws" {
-  region = "us-east-2"
+data "aws_caller_identity" "current" {}
+
+locals {
+  bedrock_resources = [
+    "arn:aws:bedrock:${var.aws_region}::foundation-model/*",
+    "arn:aws:bedrock:*:${data.aws_caller_identity.current.account_id}:inference-profile/*"
+  ]
+
+  runtime = "python3.13"
 }
 
 module "job_match_lambda" {
@@ -9,7 +15,7 @@ module "job_match_lambda" {
 
   function_name = "job-match-calculator"
   handler       = "job_match_calculator.lambda_handler"
-  runtime       = "python3.12"
+  runtime       = local.runtime
   architectures = ["x86_64"]
   timeout       = 30
 
@@ -133,7 +139,7 @@ resource "aws_lambda_function" "resume_summarizer" {
   s3_bucket = aws_s3_bucket.lambda_bucket.id
   s3_key    = aws_s3_object.resume_summarizer.key
 
-  runtime = "python3.13"
+  runtime = local.runtime
   handler = "resume_summarizer.lambda_handler"
 
   source_code_hash = data.archive_file.resume_summarizer.output_base64sha256
@@ -160,7 +166,7 @@ resource "aws_lambda_function" "get_visitor_counter" {
   s3_bucket = aws_s3_bucket.lambda_bucket.id
   s3_key    = aws_s3_object.get_visitor_counter.key
 
-  runtime = "python3.13"
+  runtime = local.runtime
   handler = "get_visitor_counter.lambda_handler"
 
   source_code_hash = data.archive_file.get_visitor_counter.output_base64sha256
@@ -181,7 +187,7 @@ resource "aws_lambda_function" "post_visitor_counter_increment" {
   s3_bucket = aws_s3_bucket.lambda_bucket.id
   s3_key    = aws_s3_object.post_visitor_counter_increment.key
 
-  runtime = "python3.13"
+  runtime = local.runtime
   handler = "post_visitor_counter_increment.lambda_handler"
 
   source_code_hash = data.archive_file.post_visitor_counter_increment.output_base64sha256
@@ -202,7 +208,7 @@ resource "aws_lambda_function" "post_unique_visitor_counter_increment" {
   s3_bucket = aws_s3_bucket.lambda_bucket.id
   s3_key    = aws_s3_object.post_unique_visitor_counter_increment.key
 
-  runtime = "python3.13"
+  runtime = local.runtime
   handler = "post_unique_visitor_counter_increment.lambda_handler"
 
   source_code_hash = data.archive_file.post_unique_visitor_counter_increment.output_base64sha256
@@ -269,12 +275,9 @@ resource "aws_iam_role_policy" "bedrock_inference_profile_lambda_exec" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = ["bedrock:InvokeModel"]
-        Resource = [
-          "arn:aws:bedrock:us-east-2::foundation-model/*",
-          "arn:aws:bedrock:*:533266979920:inference-profile/*"
-        ]
+        Effect   = "Allow"
+        Action   = ["bedrock:InvokeModel"]
+        Resource = local.bedrock_resources
       }
     ]
   })
@@ -288,12 +291,9 @@ resource "aws_iam_role_policy" "bedrock_inference_profile_lambda_post_role" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = ["bedrock:InvokeModel"]
-        Resource = [
-          "arn:aws:bedrock:us-east-2::foundation-model/*",
-          "arn:aws:bedrock:*:533266979920:inference-profile/*"
-        ]
+        Effect   = "Allow"
+        Action   = ["bedrock:InvokeModel"]
+        Resource = local.bedrock_resources
       }
     ]
   })
@@ -659,10 +659,7 @@ resource "aws_lambda_permission" "api_gw_post_unique_visitor_counter_increment" 
 resource "aws_dynamodb_table" "visitor_counter" {
   name         = "visitor-counter"
   billing_mode = "PAY_PER_REQUEST"
-  # billing_mode   = "PROVISIONED"
-  # read_capacity  = 20
-  # write_capacity = 20
-  hash_key = "id"
+  hash_key     = "id"
 
   attribute {
     name = "id"
@@ -704,10 +701,7 @@ resource "aws_dynamodb_table" "human_or_bot" {
 resource "aws_dynamodb_table" "unique_visitor_counter" {
   name         = "unique-visitor-counter"
   billing_mode = "PAY_PER_REQUEST"
-  # billing_mode   = "PROVISIONED"
-  # read_capacity  = 20
-  # write_capacity = 20
-  hash_key = "ip_address"
+  hash_key     = "ip_address"
 
   attribute {
     name = "ip_address"
@@ -715,7 +709,7 @@ resource "aws_dynamodb_table" "unique_visitor_counter" {
   }
 
   ttl {
-    attribute_name = "TimeToexist"
+    attribute_name = "TimeToExist"
     enabled        = true
   }
 
@@ -745,7 +739,7 @@ resource "aws_dynamodb_table" "rate_limiter" {
   }
 
   tags = {
-    Name        = "cloud-resume-challnge"
+    Name        = "cloud-resume-challenge"
     Environment = "production"
   }
 }
